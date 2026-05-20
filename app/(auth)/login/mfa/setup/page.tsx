@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/ssr'
-import QRCode from 'qrcode.react'
+import { createClient } from '@/lib/supabase/client'
 
 export default function MFASetup() {
   const [qrCodeData, setQrCodeData] = useState<string | null>(null)
@@ -12,13 +11,13 @@ export default function MFASetup() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [factorId, setFactorId] = useState<string | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const router = useRouter()
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   useEffect(() => {
     const setupMFA = async () => {
       try {
-        // Enroll a new TOTP factor
         const { data, error } = await supabase.auth.mfa.enroll({
           factorType: 'totp'
         })
@@ -36,6 +35,22 @@ export default function MFASetup() {
     setupMFA()
   }, [supabase])
 
+  useEffect(() => {
+    if (qrCodeData && canvasRef.current) {
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        const img = new Image()
+        img.onload = () => {
+          canvas.width = img.width
+          canvas.height = img.height
+          ctx.drawImage(img, 0, 0)
+        }
+        img.src = qrCodeData
+      }
+    }
+  }, [qrCodeData])
+
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!factorId) return
@@ -44,7 +59,6 @@ export default function MFASetup() {
     setError(null)
 
     try {
-      // Verify the TOTP factor with the code entered by the user
       const { error } = await supabase.auth.mfa.challengeAndVerify({
         factorId,
         code: otp
@@ -52,7 +66,6 @@ export default function MFASetup() {
 
       if (error) throw error
 
-      // MFA setup successful, redirect to dashboard
       router.push('/dashboard')
     } catch (error: any) {
       setError(error.message)
@@ -75,7 +88,7 @@ export default function MFASetup() {
         
         {qrCodeData ? (
           <div className="flex flex-col items-center">
-            <QRCode value={qrCodeData} size={200} className="mb-4" />
+            <canvas ref={canvasRef} width={200} height={200} className="mb-4 border rounded"></canvas>
             <p className="text-sm text-gray-600 mb-4">
               Si no puedes escanear el QR, ingresa este código secreto en tu aplicación:
             </p>

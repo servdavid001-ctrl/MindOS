@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/ssr'
+import { createClient } from '@/lib/supabase/client'
 
 export default function MFA() {
   const [otp, setOtp] = useState('')
@@ -10,13 +10,14 @@ export default function MFA() {
   const [error, setError] = useState<string | null>(null)
   const [challengeId, setChallengeId] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   useEffect(() => {
     const initiateMFA = async () => {
       try {
         // Get the current user's MFA factors
-        const { data: { factors }, error: factorsError } = await supabase.auth.mfa.listFactors()
+        const { data, error: factorsError } = await supabase.auth.mfa.listFactors()
+        const factors = (data as any)?.factors || []
         
         if (factorsError) throw factorsError
         
